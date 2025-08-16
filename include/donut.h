@@ -251,6 +251,7 @@ typedef struct _DONUT_INSTANCE {
     DONUT_CRYPT key;                          // decrypts instance if encryption enabled
 
     uint64_t    iv;                           // the 64-bit initial value for maru hash
+    uint8_t     str_key;                      // XOR key for obfuscated strings
 
     union {
       uint64_t  hash[64];                     // holds up to 64 api hashes

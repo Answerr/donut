@@ -14,6 +14,7 @@
 <h2>Table of contents</h2>
 
 <ol>
+  <li><a href="#quick">Quick Start</a></li>
   <li><a href="#intro">Introduction</a></li>
   <li><a href="#how">How It Works</a></li>
   <li><a href="#build">Building</a></li>
@@ -23,6 +24,22 @@
   <li><a href="#qad">Questions and Discussions</a></li>
   <li><a href="#disclaimer">Disclaimer</a></li>
 </ol>
+
+<h2 id="quick">Quick Start</h2>
+
+<p>Build the project and create the generator with:</p>
+
+<pre>
+  make
+</pre>
+
+<p>Generate shellcode for a payload:</p>
+
+<pre>
+  ./donut &lt;path_to_payload&gt;
+</pre>
+
+<p>The resulting loader is written to <code>loader.bin</code>. Run <code>./donut -h</code> for the full list of options.</p>
 
 <h2 id="intro">1. Introduction</h2>
 
